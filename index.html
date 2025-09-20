@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TapiX 2</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
+      background: #1e1e1e;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .score-box {
+      position: absolute;
+      top: 20px;
+      padding: 15px 30px;
+      background: #333;
+      border-radius: 12px;
+      font-size: 22px;
+      font-weight: bold;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+    }
+    .click-btn {
+      padding: 40px 80px;
+      font-size: 26px;
+      font-weight: bold;
+      border: none;
+      border-radius: 16px;
+      background: #ff4d4d;
+      color: #fff;
+      cursor: pointer;
+      box-shadow: 0 6px 15px rgba(255,77,77,0.6);
+      transition: transform 0.1s;
+    }
+    .click-btn:active { transform: scale(0.95); background: #ff1a1a; }
+    .settings-btn, .menu-btn {
+      position: absolute;
+      top: 20px;
+      font-size: 24px;
+      background: none;
+      border: none;
+      color: #fff;
+      cursor: pointer;
+    }
+    .settings-btn { right: 20px; }
+    .menu-btn { left: 20px; }
+
+    .modal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #2c2c2c;
+      padding: 20px;
+      border-radius: 12px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+      text-align: center;
+      max-width: 90%;
+    }
+    .modal label, .modal p { font-size: 18px; }
+    .close-btn {
+      margin-top: 15px;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 8px;
+      background: #ff4d4d;
+      color: #fff;
+      cursor: pointer;
+    }
+    .version { margin-top: 15px; font-size: 14px; color: #aaa; }
+    .menu-list button {
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      background: #444;
+      color: #fff;
+      cursor: pointer;
+      margin: 5px 0;
+    }
+    .menu-list button:hover { background: #666; }
+    input#promoInput {
+      padding: 8px;
+      border-radius: 8px;
+      border: none;
+      width: 80%;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="score-box">Очки: <span id="score">0</span></div>
+  <button class="click-btn" onclick="addPoint()">Клик</button>
+
+  <button class="settings-btn" onclick="toggleSettings()">⚙️</button>
+  <button class="menu-btn" onclick="toggleMenu()">⋮</button>
+
+  <!-- Настройки -->
+  <div class="modal" id="settings">
+    <label>
+      <input type="checkbox" id="music-toggle" checked>
+      🎵 Музыка
+    </label>
+    <button class="close-btn" onclick="toggleSettings()">Закрыть</button>
+    <div class="version">V beta 0.0.0</div>
+  </div>
+
+  <!-- Меню -->
+  <div class="modal" id="menu">
+    <div class="menu-list">
+      <button onclick="openProfile()">👤 Профиль</button>
+      <button onclick="openPromo()">🎁 Промокоды</button>
+      <button onclick="window.open('https://t.me/TapiX2Channel','_blank')">📢 Канал</button>
+      <button onclick="confirmReset()">♻️ Сбросить очки</button>
+    </div>
+    <button class="close-btn" onclick="toggleMenu()">Закрыть</button>
+  </div><!-- Профиль -->
+  <div class="modal" id="profile">
+    <h3>👤 Профиль</h3>
+    <p id="achievements">Достижений пока нет.</p>
+    <button class="close-btn" onclick="closeModal('profile')">Закрыть</button>
+  </div>
+
+  <!-- Промокоды -->
+  <div class="modal" id="promo">
+    <h3>🎁 Введите промокод</h3>
+    <input type="text" id="promoInput" placeholder="Ваш код">
+    <button onclick="checkPromo()">Активировать</button>
+    <p id="promoResult"></p>
+    <button class="close-btn" onclick="closeModal('promo')">Закрыть</button>
+  </div>
+
+  <!-- Модалка для сообщений -->
+  <div class="modal" id="messageModal">
+    <p id="messageText"></p>
+    <button class="close-btn" onclick="closeModal('messageModal')">Закрыть</button>
+  </div>
+
+  <!-- Подтверждение сброса -->
+  <div class="modal" id="confirmModal">
+    <p>Вы точно хотите сбросить все очки?</p>
+    <button onclick="resetScore()">Да</button>
+    <button onclick="closeModal('confirmModal')">Нет</button>
+  </div>
+
+  <!-- Музыка -->
+  <audio id="bg-music" loop>
+    <source src="clickmusic.mp3" type="audio/mpeg">
+  </audio>
+
+  <script>
+    // Загрузка прогресса из localStorage
+    let score = parseInt(localStorage.getItem("tapiX2Score") || "0");
+    let unlocked = JSON.parse(localStorage.getItem("tapiX2Achievements") || "[]");
+    document.getElementById("score").textContent = score;
+
+    let music = document.getElementById("bg-music");
+    let toggle = document.getElementById("music-toggle");
+    let musicStarted = false;
+
+    const achievements = [100, 500, 1000];
+
+    const promoCodes = {
+      "REDTAP": 150,
+      "MEGACLICK": 500,
+      "SECRET777": 777,
+      "BOOST1000": 1000,
+      "TAPSTAR": 300
+    };
+
+    // Функция клика
+    function addPoint() {
+      score++;
+      document.getElementById("score").textContent = score;
+      localStorage.setItem("tapiX2Score", score);
+
+      if (!musicStarted && toggle.checked) {
+        music.play().catch(() => {}); 
+        musicStarted = true;
+      }
+
+      // Проверка достижений
+      achievements.forEach(a => {
+        if (score >= a && !unlocked.includes(a)) {
+          unlocked.push(a);
+          localStorage.setItem("tapiX2Achievements", JSON.stringify(unlocked));
+          showMessage("🏆 Достижение: " + a + " кликов!");
+        }
+      });
+    }
+
+    // Открытие/закрытие модалок
+    function toggleSettings() {
+      let s = document.getElementById("settings");
+      s.style.display = s.style.display === "flex" ? "none" : "flex";
+    }
+
+    function toggleMenu() {
+      let m = document.getElementById("menu");
+      m.style.display = m.style.display === "flex" ? "none" : "flex";
+    }
+
+    toggle.addEventListener("change", () => {
+      if (toggle.checked) {
+        music.play().catch(() => {});
+        musicStarted = true;
+      } else {
+        music.pause();
+      }
+    });
+
+    function openProfile() {
+      document.getElementById("menu").style.display = "none";
+      let text = unlocked.length > 0 ? "Ваши достижения:<br>" + unlocked.join(", ") : "Достижений пока нет.";
+      document.getElementById("achievements").innerHTML = text;
+      document.getElementById("profile").style.display = "flex";
+    }
+
+    function openPromo() {
+      document.getElementById("menu").style.display = "none";
+      document.getElementById("promo").style.display = "flex";
+    }
+
+    function checkPromo() {
+      let code = document.getElementById("promoInput").value.trim().toUpperCase();
+      if (promoCodes[code]) {
+        score += promoCodes[code];
+        document.getElementById("score").textContent = score;
+        localStorage.setItem("tapiX2Score", score);
+        showMessage("✅ Код активирован! +" + promoCodes[code] + " очков.");
+      } else {
+        showMessage("❌ Неверный код.");
+      }
+      document.getElementById("promoInput").value = "";
+    }
+
+    function showMessage(text) {
+      document.getElementById("messageText").textContent = text;
+      document.getElementById("messageModal").style.display = "flex";
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).style.display = "none";
+    }
+
+    function confirmReset() {
+      document.getElementById("menu").style.display = "none";
+      document.getElementById("confirmModal").style.display = "flex";
+    }
+
+    function resetScore() {
+      score = 0;
+      unlocked = [];
+      localStorage.setItem("tapiX2Score", score);
+      localStorage.setItem("tapiX2Achievements", JSON.stringify(unlocked));
+      document.getElementById("score").textContent = score;
+      closeModal('confirmModal');
+      showMessage("♻️ Все очки сброшены!");
+    }
+  </script>
+</body>
+</html>
